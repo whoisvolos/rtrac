@@ -6,10 +6,10 @@
 #include "time.hpp"
 
 #include <random>
-#include "integrate.hpp"
 #include "linalg.hpp"
 
-using namespace integrate;
+#include <assert.h>
+
 using namespace linalg;
 
 //  globals
@@ -18,10 +18,10 @@ int numnodes, myid, mpi_err;
 // end globals
 
 template <class GEN>
-vec3<float> rand_hemisphere(GEN &gen_rad, GEN &gen_phi, float rad) {
+vec3<float> nrand_hemisphere(GEN &gen_rad, GEN &gen_phi) {
     float r = gen_rad();
     float phi = gen_phi();
-    return vec3<float>(r * cos(phi), r * sin(phi), sqrt(rad * rad - r * r));
+    return vec3<float>(r * cos(phi), r * sin(phi), sqrt(1 - r * r));
 }
 
 void init_it(int *argc, char ***argv) {
@@ -32,11 +32,6 @@ void init_it(int *argc, char ***argv) {
 
 int main(int argc, char **argv) {
     /*
-    std::default_random_engine eng;
-    std::uniform_real_distribution<float> phi_distr(0, 2 * M_PI);
-    std::uniform_real_distribution<float> radius_distr(0, 1);
-    auto rgen = std::bind(radius_distr, eng);
-    auto pgen = std::bind(phi_distr, eng);
 
     struct timespec t2, t3;
     clock_gettime(CLOCK_MONOTONIC,  &t2);
@@ -50,18 +45,31 @@ int main(int argc, char **argv) {
     printf("(%f, %f, %f)\n", acc.x, acc.y, acc.z);
     */
 
-    ray3<float> ray(1, 0, 2, 1, 0, -1);
-    plane3<float> plane(1, 0, 0.5, 0, 0, 0.5);
+    const int NUM_RAYS = 1000;
+    float c = 1, a = 1, b = 1, a_step = 0.1, b_step = 0.1;
+    plane3<float> A1(0, 0, 0, 0, 0, 1);
+    plane3<float> A2(0, 0, c, 0, 0, -1);
 
-    vec3<float> intr;
-    auto dist = ray.intersect_plane(plane, intr);
-    if (dist > 0) {
-        printf("(%f, %f, %f)\n", intr.x, intr.y, intr.z);
-    } else {
-        printf("No intersection\n");
+    std::default_random_engine eng;
+    std::uniform_real_distribution<float> phi_distr(0, 2 * M_PI);
+    std::uniform_real_distribution<float> radius_distr(0, 1);
+    auto rgen = std::bind(radius_distr, eng);
+    auto pgen = std::bind(phi_distr, eng);
+
+    for (float i = 0; i < a; i += a_step) {
+        for (float j = 0; j < b; j += b_step) {
+            vec3<float> p0(i + a_step / 2, j + b_step / 2, 0);
+            for (int r = 0; r < NUM_RAYS; ++r) {
+                // Generate random ray
+                vec3<float> u = nrand_hemisphere(rgen, pgen);
+                ray3<float> ray(p0, u);
+                
+                // Calculate intersection with A2 plane
+                vec3<float> intr;
+                float dist = ray.intersect_plane(A2, intr);
+                
+            }
+//          printf("(%f, %f, %f) (%f, %f, %f), %f\n", p0.x, p0.y, p0.z, u.x, u.y, u.z, u.norm);
+        }
     }
-
-    vec3<float> intr2;
-    auto sim_dist = plane.intersect_ray(ray, intr2);
-    assert(dist == sim_dist);
 }
