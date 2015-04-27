@@ -30,35 +30,34 @@ void init_it(int *argc, char ***argv) {
     mpi_err = MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 }
 
+float real_result(float a, float b, float c) {
+    float x = a/c, y = b/c, xq = x * x, yq = y * y;
+    float result = 2 / M_PI / x / y * (log(sqrt((1 + xq) * (1 + yq) / (1 + xq + yq))) + x * sqrt(1 + yq) * atan(x / sqrt(1 + yq)) + y * sqrt(1 + xq) * atan(y / sqrt(1 + xq)) - x * atan(x) - y * atan(y));
+    return result;
+}
+
 int main(int argc, char **argv) {
-    /*
-
-    struct timespec t2, t3;
-    clock_gettime(CLOCK_MONOTONIC,  &t2);
-    vec3<float> acc(0, 0, 0);
-    for (int i = 0; i < 1000000; i++) {
-        acc = acc + rand_hemisphere(rgen, pgen, 1);
-    }
-    clock_gettime(CLOCK_MONOTONIC,  &t3);
-    double dt1 = (t3.tv_sec - t2.tv_sec) + (float) (t3.tv_nsec - t2.tv_nsec) * 1e-9;
-    printf("%.3f ms\n", dt1 * 1000);
-    printf("(%f, %f, %f)\n", acc.x, acc.y, acc.z);
-    */
-
-    const int NUM_RAYS = 1000;
-    float c = 1, a = 1, b = 1, a_step = 0.1, b_step = 0.1;
+    const int NUM_RAYS = 100;
+    float c = 1, a = 1, b = 1, a_step = 0.01, b_step = 0.01;
     plane3<float> A1(0, 0, 0, 0, 0, 1);
     plane3<float> A2(0, 0, c, 0, 0, -1);
 
     std::default_random_engine eng;
     std::uniform_real_distribution<float> phi_distr(0, 2 * M_PI);
     std::uniform_real_distribution<float> radius_distr(0, 1);
+
+    std::normal_distribution<float> n_distr(0, 1);
+
     auto rgen = std::bind(radius_distr, eng);
     auto pgen = std::bind(phi_distr, eng);
+    unsigned long long ok = 0, total = 0;
 
-    for (float i = 0; i < a; i += a_step) {
-        for (float j = 0; j < b; j += b_step) {
-            vec3<float> p0(i + a_step / 2, j + b_step / 2, 0);
+    struct timespec t2, t3;
+    clock_gettime(CLOCK_MONOTONIC,  &t2);
+
+    for (float i = a_step / 2; i < a; i += a_step) {
+        for (float j = b_step / 2; j < b; j += b_step) {
+            vec3<float> p0(i, j, 0);
             for (int r = 0; r < NUM_RAYS; ++r) {
                 // Generate random ray
                 vec3<float> u = nrand_hemisphere(rgen, pgen);
@@ -67,9 +66,21 @@ int main(int argc, char **argv) {
                 // Calculate intersection with A2 plane
                 vec3<float> intr;
                 float dist = ray.intersect_plane(A2, intr);
-                
+                if (dist > 0 &&
+                    intr.x >= 0 && intr.x < a &&
+                    intr.y >= 0 && intr.y < b) {
+                    ++ok;
+                }
+                ++total;
             }
-//          printf("(%f, %f, %f) (%f, %f, %f), %f\n", p0.x, p0.y, p0.z, u.x, u.y, u.z, u.norm);
         }
     }
+    float result = (float)ok/(float)(total);
+
+    clock_gettime(CLOCK_MONOTONIC,  &t3);
+    double dt1 = (t3.tv_sec - t2.tv_sec) + (float) (t3.tv_nsec - t2.tv_nsec) * 1e-9;
+
+    float real = real_result(a, b, c);
+    printf("Result: %f, real: %f, rel: %f, rays: %llu\n", result, real, result / real, total);
+    printf("%.3f ms\n", dt1 * 1000);
 }
