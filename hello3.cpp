@@ -38,12 +38,16 @@ float real_result(float a, float b, float c) {
 
 int main(int argc, char **argv) {
     const int NUM_RAYS = 10, STEPS = 10;
-    float c = 1, a = 1, b = 1, a_step = a / STEPS, b_step = b / STEPS;
-    plane3<float> A1(0, 0, 0, 0, 0, 1);
-    plane3<float> A2(0, 0, c, 0, 0, -1);
+    float c = 5, a = 2, b = 3, a_step = a / STEPS, b_step = b / STEPS;
 
-    auto ap = poly<float, 4>(0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0);
+    auto A1 = poly<float, 4>(0, 0, 0, a, 0, 0, a, b, 0, 0, b, 0);
+    auto A2 = poly<float, 4>(0, 0, c, 0, b, c, a, b, c, a, 0, c);
+    auto ray = ray3<float>(a / 2, b / 2, 0, 0, 0, 1);
 
+    vec3<float> intr;
+    float dist = A2.intersect_ray(ray, intr);
+
+    /*
     std::mt19937 eng1, eng2(1000);
     std::uniform_real_distribution<float> x_distr(0, 1);
 
@@ -82,4 +86,5 @@ int main(int argc, char **argv) {
     float real = real_result(a, b, c);
     printf("Result: %f, real: %f, rel: %f, rays: %llu\n", result, real, result / real, total);
     printf("%.3f ms\n", dt1 * 1000);
+    */
 }

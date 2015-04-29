@@ -1,5 +1,5 @@
 #include <math.h>
-#include <initializer_list>
+#include <tuple>
 
 namespace linalg {
 
@@ -12,8 +12,39 @@ namespace linalg {
     template <typename T>
     class plane3;
 
-    template <typename T, unsigned int N>
-    class poly;    
+    template <typename T, size_t N>
+    class poly;
+
+    template <typename T>
+    class vec2 {
+    public:
+        T u;
+        T v;
+
+        vec2(): u(0), v(0) {}
+
+        vec2(T u, T v): u(u), v(v) {}
+
+        inline vec2 operator + (const vec2& other) {
+            return vec2(u + other.u, v + other.v);
+        }
+
+        inline vec2 operator - (const vec2& other) {
+            return vec2(u - other.u, v - other.v);
+        }
+
+        inline static vec2<T> from3(const vec3<T>& vec, int drop_idx) {
+            switch (drop_idx) {
+                case 0:
+                    return vec2(vec.y, vec.z);
+                case 1:
+                    return vec2(vec.x, vec.z);
+                default:
+                case 2:
+                    return vec2(vec.x, vec.y);
+            }
+        }
+    };
 
     //  Simple 3D vector class
     template <typename T>
@@ -79,6 +110,18 @@ namespace linalg {
         inline bool operator == (const vec3& other) {
             return this->x == other.x && this->y == other.y && this->z == other.z;
         }
+
+        inline std::tuple<int, T> max() {
+            int idx = max_magn_idx();
+            return std::make_tuple(idx, *((T *)this + idx));
+        }
+
+        inline int max_magn_idx() {
+            T xa = abs(x), ya = abs(y), za = abs(z);
+            T xy = xa > ya ? xa : ya;
+            int idx = xa > ya ? 0 : 1;
+            return xy > za ? idx : 2;
+        }
     };
 
     // 3D ray class
@@ -110,11 +153,6 @@ namespace linalg {
             T s = plane.n * (plane.v0 - p0) / denom;
             intersection = p0 + u * s;
             return s;
-        }
-
-        template <unsigned int N>
-        T intersect_poly(poly<T, N>& p) {
-            return N;
         }
     };
 
@@ -150,7 +188,7 @@ namespace linalg {
         }
     };
 
-    template <typename T, unsigned int N>
+    template <typename T, size_t N>
     class poly {
     private:
         void adder(T* arr, int idx, size_t sz, T v) {
@@ -167,22 +205,20 @@ namespace linalg {
 
     public:        
         vec3<T> points[N];
-        vec3<T> norm;
+
+        poly(T* src_points) {
+            memcpy(points, src_points, sizeof(vec3<T>) * N);
+        }
 
         template <typename...Args>
         poly(Args... args) {
             auto sz = N * sizeof(vec3<T>) / sizeof(T);
             T* loc_points = (T*)points;
             adder(loc_points, 0, sz, args...);
-
-            for (int i = 0; i < N; ++i) {
-                printf("%f, %f, %f\n", points[i].x, points[i].y, points[i].z);
-            }
         }
 
-        poly(T src_points[]) {
-            memcpy(points, src_points, sizeof(T) * N);
-            norm = (points[1] - points[0]).cross(points[N] - points[0]);
+        vec3<T> norm() {
+            return (points[1] - points[0]).cross(points[N - 1] - points[0]);
         }
 
         T get_area() {
@@ -208,6 +244,27 @@ namespace linalg {
                 }
             }
             return true;
+        }
+
+        T intersect_ray(ray3<T>& ray, vec3<T>& intersection) {
+            // Find plane intersection
+            vec3<T> norm = this->norm();
+            plane3<T> plane(points[0], norm);
+            T dist = ray.intersect_plane(plane, intersection);
+            if (dist <= 0) {
+                return 0;
+            }
+
+            // Drop maximum magnitude coord
+            auto max_idx = norm.max_magn_idx();
+            vec2<T> projection[N];
+            vec2<T> proj_intr = vec2<T>::from3(intersection, max_idx);
+            printf("After %i drop: %f, %f\n", max_idx, proj_intr.u, proj_intr.v);
+            for (int i = 0; i < N; ++i) {
+                projection[i] = vec2<T>::from3(*(points + i), max_idx) - proj_intr;
+            }
+
+            return dist;
         }
     };
 
