@@ -19,8 +19,8 @@ int numnodes, myid, mpi_err;
 
 template <class GEN>
 vec3<float> nrand_hemisphere(GEN &gen_rad, GEN &gen_phi) {
-    float r = gen_rad();
-    float phi = gen_phi();
+    float r = sqrt(gen_rad());
+    float phi = gen_phi() * 2 * M_PI;
     return vec3<float>(r * cos(phi), r * sin(phi), sqrt(1 - r * r));
 }
 
@@ -37,19 +37,18 @@ float real_result(float a, float b, float c) {
 }
 
 int main(int argc, char **argv) {
-    const int NUM_RAYS = 100;
-    float c = 1, a = 1, b = 1, a_step = 0.01, b_step = 0.01;
+    const int NUM_RAYS = 10, STEPS = 10;
+    float c = 1, a = 1, b = 1, a_step = a / STEPS, b_step = b / STEPS;
     plane3<float> A1(0, 0, 0, 0, 0, 1);
     plane3<float> A2(0, 0, c, 0, 0, -1);
 
-    std::default_random_engine eng;
-    std::uniform_real_distribution<float> phi_distr(0, 2 * M_PI);
-    std::uniform_real_distribution<float> radius_distr(0, 1);
+    auto ap = poly<float, 4>(0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0);
 
-    std::normal_distribution<float> n_distr(0, 1);
+    std::mt19937 eng1, eng2(1000);
+    std::uniform_real_distribution<float> x_distr(0, 1);
 
-    auto rgen = std::bind(radius_distr, eng);
-    auto pgen = std::bind(phi_distr, eng);
+    auto rgen = std::bind(x_distr, eng1);
+    auto pgen = std::bind(x_distr, eng2);
     unsigned long long ok = 0, total = 0;
 
     struct timespec t2, t3;
