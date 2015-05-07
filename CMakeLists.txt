@@ -9,16 +9,21 @@ include_directories(${MPI_INCLUDE_PATH})
 
 set(SOURCE_FILES
     hello3.cpp
-    linalg.hpp
     funcs.hpp
     time.hpp
     integrate.hpp
     integrate.cpp
-    math/)
+    math/operations.h
+    math/operations_ext.h
+    math/plane.h
+    math/plane.cpp
+    math/triangle.h
+    math/triangle.cpp
+    math/types.h)
 
 include_directories(${MPI_INCLUDE_PATH})
 
-add_executable(hello ${SOURCE_FILES})
+add_executable(hello ${SOURCE_FILES} math/plane.h math/operations_ext.h)
 target_link_libraries(hello ${MPI_LIBRARIES})
 
 if(MPI_COMPILE_FLAGS)

@@ -6,36 +6,27 @@
 #include "time.hpp"
 
 #include <random>
-#include "linalg.hpp"
+#include "math/types.h"
+#include "math/plane.h"
 
 #include <assert.h>
 
-using namespace linalg;
-
-//  globals
-int numnodes, myid, mpi_err;
-#define mpi_root 0
-// end globals
+using namespace math;
 
 template <class GEN>
-vec3<float> nrand_hemisphere(GEN &gen_rad, GEN &gen_phi) {
-    float rad = sqrtf(gen_rad());
+vec3 nrand_hemisphere(GEN &gen_rad, GEN &gen_phi) {
+    float r = gen_rad();
+    float rad = sqrtf(r);
     float phi = gen_phi() * 2 * M_PI;
-    return vec3<float>(rad * cosf(phi), rad * sinf(phi), sqrtf(1 - rad * rad));
+    return { rad * cosf(phi), rad * sinf(phi), sqrtf(1 - r) };
 }
 
 template <class GEN>
-vec3<double> nrand_hemisphere_spherical(GEN &gen_rad, GEN &gen_phi) {
-    double theta = acos(sqrt(gen_rad()));
-    double phi = gen_phi() * 2 * M_PI;
-    return vec3<double>(cos(phi) * sin(theta), sin(phi) * sin(theta), cos(theta));
-}
-
-void init_it(int *argc, char ***argv) {
-    mpi_err = MPI_Init(argc, argv);
-    mpi_err = MPI_Comm_size(MPI_COMM_WORLD, &numnodes);
-    mpi_err = MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-}
+vec3 nrand_hemisphere_spherical(GEN &gen_rad, GEN &gen_phi) {
+    float theta = acosf(sqrtf(gen_rad()));
+    float phi = gen_phi() * 2 * M_PI;
+    return vec3 { cosf(phi) * sinf(theta), sinf(phi) * sinf(theta), cosf(theta) };
+};
 
 /**
  * Parallel plates
@@ -43,9 +34,9 @@ void init_it(int *argc, char ***argv) {
  * param b - y dimension
  * param c - distance between plates
  */
-double real_result(double a, double b, double c) {
-    double x = a/c, y = b/c, xq = x * x, yq = y * y;
-    double result = 2 / M_PI / x / y * (log(sqrt((1 + xq) * (1 + yq) / (1 + xq + yq))) + x * sqrt(1 + yq) * atan(x / sqrt(1 + yq)) + y * sqrt(1 + xq) * atan(y / sqrt(1 + xq)) - x * atan(x) - y * atan(y));
+point_t real_result(point_t a, point_t b, point_t c) {
+    auto x = a/c, y = b/c, xq = x * x, yq = y * y;
+    auto result = 2 / M_PI / x / y * (logf(sqrtf((1 + xq) * (1 + yq) / (1 + xq + yq))) + x * sqrtf(1 + yq) * atanf(x / sqrtf(1 + yq)) + y * sqrtf(1 + xq) * atanf(y / sqrtf(1 + xq)) - x * atanf(x) - y * atanf(y));
     return result;
 }
 
@@ -68,61 +59,48 @@ double real_result_90(double a, double b, double c) {
 
 
 int main(int argc, char **argv) {
-    const int NUM_RAYS = 100, STEPS = 100;
-    float c = 1, a = 1, b = 1, a_step = a / STEPS, b_step = b / STEPS;
+    const int TOTAl_RAYS = 1000;
+    float c = 1, a = 1, b = 1;
 
-    auto A1 = poly<float, 4>(0, 0, 0, a, 0, 0, a, b, 0, 0, b, 0);
-    auto A2 = poly<float, 4>(0, 0, c, 0, b, c, a, b, c, a, 0, c);
-    auto ray = ray3<float>(a / 2, b / 2, 0, 1, 1, 1);
+    plane_t A1 = { { 0, 0, 0 }, { 0, 0, 1 } };
+    plane_t A2 = { { 0, 0, c }, { 1, 0, 0 } };
 
-    vec3<float> intr;
-    float dist = A2.intersect_ray(ray, intr);
-    printf("%f\n", dist);
-
-    /*
-    plane3<float> A1(0, 0, 0, 0, 0, 1);
-    plane3<float> A2(0, 0, c / 2, 1, 0, 0);
-
-    std::default_random_engine eng1, eng2(1000);
+    std::mt19937 eng1, eng2(1000);
     std::uniform_real_distribution<float> x_distr(0, 1);
 
     auto rgen = std::bind(x_distr, eng1);
     auto pgen = std::bind(x_distr, eng2);
-    unsigned long long ok = 0, total = 0;
+    unsigned long long ok = 0;
 
     struct timespec t2, t3;
     clock_gettime(CLOCK_MONOTONIC,  &t2);
 
-    for (auto i = a_step / 2; i < a; i += a_step) {
-        for (auto j = b_step / 2; j < b; j += b_step) {
-            vec3<float> p0(i, j, 0);
-            for (int r = 0; r < NUM_RAYS; ++r) {
-                // Generate random ray
-                auto u = nrand_hemisphere(rgen, pgen);
-                ray3<float> ray(p0, u);
-                
-                // Calculate intersection with A2 plane
-                vec3<float> intr;
-                float dist = ray.intersect_plane(A2, intr);
+    for (int i = 0; i < TOTAl_RAYS; ++i) {
+        // Generate random position
+        vec3 p0 = { a * rgen(), b * pgen(), 0 };
 
-                if (dist > 0 &&
-                    intr.z >= 0 && intr.z < c &&
-                    intr.y >= 0 && intr.y < b) {
-                    ++ok;
-                }
-                ++total;
-            }
+        // Generate cosine-weighted random ray
+        auto u = nrand_hemisphere(rgen, pgen);
+        ray_t ray = { p0, u };
+
+        // Calculate intersection with A2 plane
+        vec3 intr;
+        float dist = intr_ray_plane(A2, ray, intr);
+        if (dist > 0 &&
+            intr.z >= 0 && intr.z < c &&
+            intr.y >= 0 && intr.y < b) {
+            ++ok;
         }
-    }
-    auto result = (float)ok/(float)(total);
+
+    };
+    auto result = (float)ok/(float)(TOTAl_RAYS);
 
     clock_gettime(CLOCK_MONOTONIC,  &t3);
     auto dt1 = (t3.tv_sec - t2.tv_sec) + (float) (t3.tv_nsec - t2.tv_nsec) * 1e-9;
 
     auto real = real_result_90(a, b, c);
-    printf("Result: %f, real: %f, rel: %f, rays: %llu\n", result, real, result / real, total);
+    printf("Result: %f, real: %f, rel: %f, rays: %i\n", result, real, result / real, TOTAl_RAYS);
     printf("%.3f ms\n", dt1 * 1000);
-    */
 
     return 0;
 }
