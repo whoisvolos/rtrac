@@ -6,8 +6,10 @@
 #include "time.hpp"
 
 #include <random>
+#include "math/operations.h"
 #include "math/types.h"
 #include "math/plane.h"
+#include "math/operations_ext.h"
 
 #include <assert.h>
 
@@ -57,13 +59,12 @@ double real_result_90(double a, double b, double c) {
     return result;
 }
 
-
 int main(int argc, char **argv) {
-    const int TOTAl_RAYS = 1000;
+    const int TOTAl_RAYS = 1000000;
     float c = 1, a = 1, b = 1;
 
-    plane_t A1 = { { 0, 0, 0 }, { 0, 0, 1 } };
-    plane_t A2 = { { 0, 0, c }, { 1, 0, 0 } };
+    plane_t A1 = { { 0, 0, 0 }, { 1, 0, 0 } };
+    plane_t A2 = { { c, 0, 0 }, { -1, 0, 0 } };
 
     std::mt19937 eng1, eng2(1000);
     std::uniform_real_distribution<float> x_distr(0, 1);
@@ -75,20 +76,24 @@ int main(int argc, char **argv) {
     struct timespec t2, t3;
     clock_gettime(CLOCK_MONOTONIC,  &t2);
 
+    // Cчитаем 1 раз на полигон
+    matrix3x3 ROT = rotate_towards(Z, A2.normal);
+
     for (int i = 0; i < TOTAl_RAYS; ++i) {
         // Generate random position
-        vec3 p0 = { a * rgen(), b * pgen(), 0 };
+        vec3 p0 = { c, b * pgen(), a * rgen() };
 
         // Generate cosine-weighted random ray
         auto u = nrand_hemisphere(rgen, pgen);
+        u = ROT * u;
         ray_t ray = { p0, u };
 
         // Calculate intersection with A2 plane
         vec3 intr;
-        float dist = intr_ray_plane(A2, ray, intr);
-        if (dist > 0 &&
-            intr.z >= 0 && intr.z < c &&
-            intr.y >= 0 && intr.y < b) {
+        float dist = intr_ray_plane(A1, ray, intr);
+        if (dist > 0 && //intr.x == 0 &&
+            intr.z >= 0 && intr.z <= a &&
+            intr.y >= 0 && intr.y <= b) {
             ++ok;
         }
 
@@ -98,7 +103,7 @@ int main(int argc, char **argv) {
     clock_gettime(CLOCK_MONOTONIC,  &t3);
     auto dt1 = (t3.tv_sec - t2.tv_sec) + (float) (t3.tv_nsec - t2.tv_nsec) * 1e-9;
 
-    auto real = real_result_90(a, b, c);
+    auto real = real_result(a, b, c);
     printf("Result: %f, real: %f, rel: %f, rays: %i\n", result, real, result / real, TOTAl_RAYS);
     printf("%.3f ms\n", dt1 * 1000);
 
