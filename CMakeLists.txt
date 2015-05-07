@@ -13,7 +13,8 @@ set(SOURCE_FILES
     funcs.hpp
     time.hpp
     integrate.hpp
-    integrate.cpp)
+    integrate.cpp
+    math/)
 
 include_directories(${MPI_INCLUDE_PATH})
 

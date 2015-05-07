@@ -2,6 +2,7 @@
 #include <tuple>
 
 namespace linalg {
+    float EPS = 1e-7;
 
     template <typename T>
     class vec3;
@@ -31,6 +32,14 @@ namespace linalg {
 
         inline vec2 operator - (const vec2& other) {
             return vec2(u - other.u, v - other.v);
+        }
+
+        inline T norm() {
+            return sqrt(u * u + v * v);
+        }
+
+        inline T perp(const vec2& other) {
+            return u * other.v - other.u * v;
         }
 
         inline static vec2<T> from3(const vec3<T>& vec, int drop_idx) {
@@ -108,7 +117,9 @@ namespace linalg {
         }
 
         inline bool operator == (const vec3& other) {
-            return this->x == other.x && this->y == other.y && this->z == other.z;
+            return fabs(this->x - other.x) < EPS &&
+                   fabs(this->y - other.y) < EPS &&
+                   fabs(this->z - other.z) < EPS;
         }
 
         inline std::tuple<int, T> max() {
@@ -147,7 +158,7 @@ namespace linalg {
 
         T intersect_plane(plane3<T>& plane, vec3<T>& intersection) {
             T denom = plane.n * u;
-            if (denom >= 0) {
+            if (fabs(denom) < EPS) {
                 return -1;
             }
             T s = plane.n * (plane.v0 - p0) / denom;
@@ -179,7 +190,7 @@ namespace linalg {
 
         T intersect_ray(ray3<T>& ray, vec3<T>& intersection) {
             T denom = n * ray.u;
-            if (denom >= 0) {
+            if (fabs(denom) < EPS) {
                 return -1;
             }
             T s = n * (v0 - ray.p0) / denom;
@@ -251,7 +262,7 @@ namespace linalg {
             vec3<T> norm = this->norm();
             plane3<T> plane(points[0], norm);
             T dist = ray.intersect_plane(plane, intersection);
-            if (dist <= 0) {
+            if (fabs(dist) < EPS) {
                 return 0;
             }
 
@@ -259,9 +270,29 @@ namespace linalg {
             auto max_idx = norm.max_magn_idx();
             vec2<T> projection[N];
             vec2<T> proj_intr = vec2<T>::from3(intersection, max_idx);
-            printf("After %i drop: %f, %f\n", max_idx, proj_intr.u, proj_intr.v);
+            //printf("After %i drop: %f, %f\n", max_idx, proj_intr.u, proj_intr.v);
             for (int i = 0; i < N; ++i) {
                 projection[i] = vec2<T>::from3(*(points + i), max_idx) - proj_intr;
+                //printf("%f, %f\n", projection[i].u, projection[i].v);
+            }
+
+            int intrs = 0;
+            vec2<T> u(1, 0);
+            for (int i = 0; i < N; ++i) {
+                vec2<T> w = projection[i];
+                vec2<T> v = projection[(i + 1) % N] - w;
+                T denom = u.perp(v);
+                if (fabs(denom) >= EPS) {
+                    T numer = u.perp(w);
+                    printf("%f / %f\n", numer, denom);
+                    if (numer / denom <= v.norm()) {
+                        ++intrs;
+                    }
+                }
+            }
+
+            if (intrs % 2 == 0) {
+                printf("Intersection!\n");
             }
 
             return dist;
